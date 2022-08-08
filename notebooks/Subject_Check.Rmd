@@ -1,0 +1,90 @@
+# Subject Check
+
+Definição de amostra e verificação de sujeitos disponíveis para análise VAMS
+
+## Todos os participantes
+
+Visão geral de todos os participantes disponíveis na tabela `Organização dos Dados.xlsx`
+
+```{r}
+library(tidyverse)
+
+todos_participantes <- readxl::read_excel(
+  here::here("data","Organização dos Dados.xlsx"))
+
+knitr::kable(todos_participantes)
+```
+
+## Todos os participantes com captura de eye-tracking
+
+Participantes marcados afirmativamente com a presença de arquivos de eye-tracking (verificados na pasta de dados).
+
+```{r}
+participantes_eye <- todos_participantes[todos_participantes$Eyetracking %in% c("sim"), ]
+
+knitr::kable(participantes_eye)
+```
+
+### Faltantes
+
+Lista de participantes sem arquivos de eye-tracking.
+
+```{r}
+knitr::kable(todos_participantes[!(todos_participantes$Eyetracking %in% c("sim")), "Sujeito" ])
+```
+
+## Participantes com Logfiles disponíveis
+
+Participantes com os logfiles verificados e disponíveis, conjuntamente com os testes VAMS.
+
+```{r}
+sist_logfiles <- readxl::read_excel(here::here("data", "Sistematizacao Logfiles.xlsx"))
+knitr::kable(sist_logfiles)
+```
+
+## Interseção das duas listas
+
+Participantes presentes em ambas as listas. Verificação realizada pelo número do sujeito.
+
+```{r}
+participantes_mesclados <- merge(todos_participantes, sist_logfiles, by.x = "Sujeito", by.y = "PARTICIPANTE")
+knitr::kable(participantes_mesclados)
+```
+
+### Participantes com Logfiles não encontrados
+
+Participantes que não foram encontrados os arquivos de logfiles.
+
+```{r}
+logfiles_missing <- todos_participantes[!(todos_participantes$Sujeito %in% participantes_mesclados$Sujeito),]
+
+knitr::kable(logfiles_missing)
+```
+
+### Participantes com dados de eye-tracking mas sem Logfiles
+
+Participantes brasileiros com dados de eye-tracking mas sem logfile encontrado
+
+```{r}
+knitr::kable(logfiles_missing[(logfiles_missing$Eyetracking %in% c("sim") & logfiles_missing$`País` %in% c("BR")), ])
+```
+
+# Amostra final
+
+A amostra final considerou:
+
+-   Participantes com dados de eye-tracking.
+
+-   Participantes com Logfiles (ou potencial logfiles)
+
+```{r}
+knitr::kable(participantes_mesclados[participantes_mesclados$Eyetracking %in% c("sim"),])
+```
+
+```{r}
+#Exportar para xlsx
+write_csv(participantes_mesclados[participantes_mesclados$Eyetracking %in% c("sim"),], 
+                file = here::here("data", "Amostra Final.csv")
+                )
+
+```
