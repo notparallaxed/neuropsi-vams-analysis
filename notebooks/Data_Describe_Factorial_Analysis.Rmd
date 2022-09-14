@@ -1,0 +1,110 @@
+---
+---
+---
+
+# Análise Descritiva e Fatorial Exploratória VAMS
+
+```{r}
+library(tidyverse)
+library(psychTools)
+library(psych)
+library(gt)
+library(ggplot2)
+```
+
+## Load Data
+
+```{r}
+participantes <- read_csv(here::here("data", "VAMS", "Controle", "all_controle_group_VAMS.csv"), col_types = list(PARTICIPANTE=col_factor(), PRE_POS=col_factor()))
+```
+
+# Análise Descritiva
+
+### Estatísticas descritiva
+
+Média e desvio padrão, por variável, por grupo.
+
+```{r}
+subjects_pivoted <- pivot_longer(participantes, cols = 3:18)
+subjects_pivoted$name <- factor(subjects_pivoted$name, levels = 1:16)
+
+subjects_pivoted <- subjects_pivoted %>% filter(!is.na(value))
+
+groups_mean = subjects_pivoted %>%
+                  group_by(PRE_POS,name) %>%
+                  summarise(mean = mean(value), sd=sd(value))
+
+# Generate pre and post test describe
+groups_mean %>% 
+  gt() %>%
+  tab_header(title = "VAMS Descritivo") %>%
+  fmt_number(columns = c("mean", "sd"), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
+  cols_label(
+    name = "Componente",
+    mean = "Média",
+    sd = "Desvio Padrão"
+  )
+```
+
+## Visualização das distribuições pré e pós teste
+
+Plotagem identidade, barras centrais tracejadas representam a média amostral.
+
+```{r}
+ggplot(subjects_pivoted, aes(x=value, fill=`PRE_POS`)) +
+    geom_histogram(bins = 10, binwidth = 1, position="identity", alpha=0.7, color="black") +
+    facet_wrap(~name) +
+    geom_vline(data=groups_mean, aes(xintercept=mean, color=`PRE_POS`),
+             linetype="dashed") +
+    labs(title="Distribuições por Componente VAMS", 
+         x = "Valor", y = "Frequência", fill="PRÉ/POS", color="PRÉ/POS")
+```
+
+# Análise Fatorial Exploratória
+
+Para realização da análise fatorial serão considerados, para a construção do modelo, dados pré e pós sem distinção.
+
+É necessário realizar alguns teste de viabilidade afim de verificar se as variáveis possuem algum nível de correlação.
+
+<https://www.analysisinn.com/post/kmo-and-bartlett-s-test-of-sphericity/>
+
+## KMO check
+
+```{r}
+# subsetting, getting only subject componenets, pre and post test
+controle_componentes <- participantes[, 3:18]
+
+# KMO > 0.5
+KMO(controle_componentes)
+
+```
+
+Quanto mais próximo de 1, melhor é a força da correlação parcial entre as variáveis. Correlações entre 0.7 e 0.8 são consideradas ideais. O mínimo necessário é obter um valor maior que 0.5
+
+## Bartlett test
+
+```{r}
+bartlett.test(controle_componentes)
+```
+
+O teste de Bartlett verifica a homogeneidade de variância entre as variáveis. Com um p-valor menor que 0.05 podemos dizer que nossa amostra não é uma matriz identidade, logo as variáveis não são não relacionadas.
+
+## Construção do modelo
+
+```{r}
+controle_fa_model_fit <- fa(controle_componentes, nfactors = 3, cor="cor", rotate = "varimax", fm="pa")
+```
+
+```{r}
+fa.diagram(controle_fa_model_fit)
+```
+
+### Loadings
+
+```{r}
+controle_fa_model_fit$loadings
+```
+
+```{r}
+controle_fa_model_fit$scores
+```

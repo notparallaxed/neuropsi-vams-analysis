@@ -1,0 +1,47 @@
+# Tidy VAMS subjects data
+
+1.  Abrir arquivos tabulados de participantes do grupo controle.
+2.  Arrumar dataframe para melhor utilização conjuntamente com o pacote psych
+3.  Exportar dataframe final com as observações de todos os sujeitos do grupo controle.
+
+```{r}
+library(tidyverse)
+```
+
+## Load data
+
+```{r}
+controle_folder <- list.files(here::here("data", "VAMS", "Controle"), full.names = TRUE)
+names(controle_folder) <- gsub(".xlsx", "", basename(controle_folder))
+
+ldfs <- lapply(controle_folder, readxl::read_excel)
+```
+
+## Tidy data
+
+```{r}
+# Add participante name
+ldfs_nammed <- lapply(seq_along(ldfs), function(x, ldfs) { 
+  ldfs[[x]][,"PARTICIPANTE"] <- gsub("vams_", "", names(ldfs)[x])
+  ldfs[[x]]
+}, ldfs=ldfs)
+
+# tidy
+tidy_vams_data <- function(df_participante) {
+  longer_result <- pivot_longer(df_participante, cols = c("PRE-TESTE", "POS-TESTE"), names_to = "PRE_POS")
+
+  pivot_wider(longer_result, id_cols = c("PARTICIPANTE", "PRE_POS"), names_from = c("COMPONENTE"), values_from="value")
+}
+
+ldfs_tidy <- lapply(ldfs_nammed, tidy_vams_data)
+
+# bind participantes
+participantes <- bind_rows(ldfs_tidy)
+participantes
+```
+
+## Export data
+
+```{r}
+write_csv(participantes, here::here("data", "VAMS", "Controle", "all_controle_group_VAMS.csv"))
+```
