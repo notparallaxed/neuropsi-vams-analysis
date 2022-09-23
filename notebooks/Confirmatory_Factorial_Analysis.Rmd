@@ -1,0 +1,191 @@
+---
+---
+---
+
+# Análise Fatorial Confirmatória VAMS
+
+```{r}
+library(tidyverse)
+library(lavaan)
+library(lavaanPlot)
+```
+
+## Load data
+
+```{r}
+df_participantes <- read_csv(here::here("data", "VAMS", "Controle", "all_controle_group_VAMS.csv"))
+
+colnames(df_participantes) <- c("PARTICIPANTE", "PRE_POS", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16")
+```
+
+### Remove NA entries
+
+```{r}
+missing_test_participantes <- df_participantes[rowSums(is.na(df_participantes)) > 0,]$PARTICIPANTE
+
+df_participantes <- df_participantes %>% drop_na()
+rmarkdown::paged_table(df_participantes)
+```
+
+## Modelagem de variável latente
+
+Modelagem baseada no artigo The use of analogue scales in rating subjective feelings
+
+```{r}
+VAMS_fa_model <- ' mental_sedation =~ x1 + x11 + x6 + x4 + x5 + x9 + x3 + x15 + x12
+                   bad_mood =~ x13 + x14 + x8 + x7 + x16
+                   stressed =~ x2 + x10 '
+
+cfa_fit <- cfa(VAMS_fa_model, data=df_participantes)
+summary(cfa_fit)
+```
+
+### SEM plot
+
+```{r}
+lavaanPlot(model=cfa_fit, coefs=TRUE)
+```
+
+## Predict scores
+
+Cálculo dos scores fatoriais para cada observação.
+
+```{r}
+predicted_scores <- predict(cfa_fit)
+df_participantes_scored <- df_participantes %>% cbind(predicted_scores)
+rmarkdown::paged_table(df_participantes_scored)
+```
+
+#### Remove Missing PRE/POS test
+
+```{r}
+df_participantes_scored <- df_participantes_scored[!(df_participantes_scored$PARTICIPANTE %in% missing_test_participantes),]
+rmarkdown::paged_table(df_participantes_scored)
+```
+
+## Results
+
+### Distribuição dos escores fatoriais por fator
+
+#### Mental Sedation (Factor 1)
+
+```{r}
+df_mental_sedation <- df_participantes_scored[, c("PARTICIPANTE", "PRE_POS", "mental_sedation")]
+
+group_mean <- df_mental_sedation %>% group_by(PRE_POS) %>%
+                            summarise(mean = mean(mental_sedation), sd=sd(mental_sedation))
+
+ggplot(df_mental_sedation, aes(x=`mental_sedation`, fill=`PRE_POS`)) +
+         geom_histogram(position="identity", alpha=0.7, color="black") +
+         geom_vline(data=group_mean, aes(xintercept=mean, color=`PRE_POS`),
+             linetype="dashed")
+```
+
+#### Bad Mood (Factor 2)
+
+```{r}
+df_bad_mood <- df_participantes_scored[, c("PARTICIPANTE", "PRE_POS", "bad_mood")]
+
+group_mean <- df_bad_mood %>% group_by(PRE_POS) %>%
+                            summarise(mean = mean(bad_mood), sd=sd(bad_mood))
+
+ggplot(df_bad_mood, aes(x=`bad_mood`, fill=`PRE_POS`)) +
+         geom_histogram(position="identity", alpha=0.7, color="black") +
+         geom_vline(data=group_mean, aes(xintercept=mean, color=`PRE_POS`),
+             linetype="dashed")
+```
+
+#### Stressed (Factor 3)
+
+```{r}
+df_stressed <- df_participantes_scored[, c("PARTICIPANTE", "PRE_POS", "stressed")]
+
+group_mean <- df_stressed %>% group_by(PRE_POS) %>%
+                            summarise(mean = mean(stressed), sd=sd(stressed))
+
+ggplot(df_stressed, aes(x=`stressed`, fill=`PRE_POS`)) +
+         geom_histogram(position="identity", alpha=0.7, color="black") +
+         geom_vline(data=group_mean, aes(xintercept=mean, color=`PRE_POS`),
+             linetype="dashed")
+```
+
+## PRE/POS Mental Sedation T-test
+
+Teste T para o fator 1, sedação física e mental. Verificação de diferença de médias, amostras pareadas.
+
+```{r}
+t.test(mental_sedation ~ PRE_POS, df_mental_sedation, paired=TRUE)
+```
+
+### Diferença PRE/POS 
+
+POS-TESTE - PRE-TESTE. Diferença positiva implica em maior sedação mental/física.
+
+```{r}
+# Pivot wide
+df_mental_sedation_wd <- pivot_wider(df_mental_sedation, id_cols = "PARTICIPANTE", names_from = "PRE_POS", values_from = "mental_sedation")
+
+# Calc diff
+df_mental_sedation_wd[, "DIFF"] <- df_mental_sedation_wd$`POS-TESTE` - df_mental_sedation_wd$`PRE-TESTE`
+rmarkdown::paged_table(df_mental_sedation_wd)
+```
+
+### Intervalo de confiança
+
+Diferença média e intervalo de confiança.
+
+```{r}
+
+ms_diff_IC <- qt(0.975, df=32)*sd(df_mental_sedation_wd$DIFF)/sqrt(33)
+ms_mean <- mean(df_mental_sedation_wd$DIFF)
+print(paste(ms_mean, "+-", ms_diff_IC)) 
+```
+
+### Distribuição da diferença PRE/POS
+
+Distribuição da diferença PRE/POS para sedação mental/física.
+
+```{r}
+ggplot(df_mental_sedation_wd, aes(x=`DIFF`)) +
+         geom_histogram(position="identity", alpha=0.7, color="black") +
+         geom_vline(aes(xintercept=mean(`DIFF`), color="Média"),
+             linetype="dashed") +
+         geom_vline(aes(xintercept=median(`DIFF`), color="Mediana"),
+             linetype="dashed") +
+         geom_vline(aes(xintercept=ms_mean + ms_diff_IC, color="IC95%"),
+             linetype="dashed") +
+         geom_vline(aes(xintercept=ms_mean - ms_diff_IC, color="IC95%"),
+             linetype="dashed")
+```
+
+### Sujeitos acima do limite superior (Sonolentos)
+
+Sujeitos que se apresentaram acima do limite superior da média das diferenças PRÉ/PÓS. Ter uma diferença positiva grande implica em maior sonolência no pós-teste. ***Sujeitos propensos para se avaliar redes funcionais e eye-tracking.***
+
+```{r}
+rmarkdown::paged_table(df_mental_sedation_wd[(df_mental_sedation_wd$DIFF > ms_mean + ms_diff_IC),])
+```
+
+## Média e intervalo de confiança PRE/POS isolados
+
+```{r}
+mental_sedation_descript <- df_mental_sedation %>% group_by(PRE_POS) %>%
+                            summarise(mean = mean(mental_sedation), sd=sd(mental_sedation))
+mental_sedation_descript[, "CI"] = qt(0.975, df=65)*mental_sedation_descript$sd/sqrt(66)
+mental_sedation_descript[, "upper_CI"] = mental_sedation_descript$mean + mental_sedation_descript$CI
+mental_sedation_descript[, "lower_CI"] = mental_sedation_descript$mean - mental_sedation_descript$CI
+
+mental_sedation_descript
+
+```
+
+### Outro possível recorte (não faz sentido fazer desse jeito)
+
+```{r}
+
+df_mental_sedation_pos <- df_mental_sedation[df_mental_sedation$PRE_POS == "POS-TESTE", ]
+
+sleepy_subjects = (df_mental_sedation_pos$mental_sedation > mental_sedation_descript[mental_sedation_descript$PRE_POS == "PRE-TESTE",]$upper_CI)
+
+rmarkdown::paged_table(df_mental_sedation_pos[sleepy_subjects, ])
+```

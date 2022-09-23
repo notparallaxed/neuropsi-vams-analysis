@@ -1,7 +1,3 @@
----
----
----
-
 # Análise Descritiva e Fatorial Exploratória VAMS
 
 ```{r}
@@ -104,6 +100,64 @@ fa.diagram(controle_fa_model_fit)
 ```{r}
 controle_fa_model_fit$loadings
 ```
+
+## Scores
+
+Cálculo do fator para respectiva observação
+
+```{r}
+controle_fa_model_fit$scores
+```
+
+## Reversão de componentes
+
+Reversão das componentes: 4,6,8, 9, 10, 12, 14, 16. Conforme artigo base.
+
+```{r}
+participantes$`4` <- 10 - participantes$`4`
+participantes$`6` <- 10 - participantes$`6`
+participantes$`8` <- 10 - participantes$`8`
+participantes$`9` <- 10 - participantes$`9`
+participantes$`10` <- 10 - participantes$`10`
+participantes$`12` <- 10 - participantes$`12`
+participantes$`14` <- 10 - participantes$`14`
+participantes$`16` <- 10 - participantes$`16`
+
+```
+
+### KMO CHECK
+
+```{r}
+# subsetting, getting only subject componenets, pre and post test
+controle_componentes <- participantes[, 3:18]
+
+# KMO > 0.5
+KMO(controle_componentes)
+```
+
+### Bartlett test
+
+```{r}
+bartlett.test(controle_componentes)
+```
+
+## Construção do modelo com variáveis invertidas
+
+```{r}
+controle_fa_model_fit <- fa(controle_componentes, nfactors = 3, cor="cor", rotate = "varimax", fm="pa")
+```
+
+```{r}
+fa.diagram(controle_fa_model_fit)
+```
+
+### Loading
+
+```{r}
+controle_fa_model_fit$loadings
+```
+
+### Scores
 
 ```{r}
 controle_fa_model_fit$scores
